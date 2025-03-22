@@ -5,7 +5,9 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "test": "npm run dev"
+    "test": "npm run dev",
+    "start": "nodemon src/index.js"
+
   },
   "author": "suyog lamsal",
   "license": "ISC",
