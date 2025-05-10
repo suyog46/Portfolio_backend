@@ -5,46 +5,75 @@ import userModel from "../model/user.model.js";
 import { sendFeedbackEmail } from "../utils/sendMail.js";
 import axios from "axios";
 
+export const handleuser = asyncHandler(async (req, res) => {
+    const { userName, userEmail, userFeedback, token } = req.body;
 
+    // Validate required fields
+    if (!userName || !userFeedback || !token) {
+        throw new ApiError(400, "Name, message, and CAPTCHA token are required");
+    }
 
-export const handleuser=asyncHandler(async(req,res)=>{
+    // Email is optional but if provided, should be valid
+    if (userEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userEmail)) {
+        throw new ApiError(400, "Invalid email format");
+    }
 
-    console.log("data is",req.body);
-    const {userName,userEmail,userFeedback,token}=req.body;
+    // Verify reCAPTCHA token
+    try {
+        const secretKey = process.env.RECAPTCHA_SECRET_KEY;
+        if (!secretKey) {
+            throw new ApiError(500, "Server configuration error");
+        }
 
+        const googleResponse = await axios.post(
+            `https://www.google.com/recaptcha/api/siteverify`,
+            new URLSearchParams({
+                secret: secretKey,
+                response: token,
+            }),
+            {
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+            }
+        );
 
+        const { success, score, action } = googleResponse.data;
 
-if(!userName|| !userEmail ||!userFeedback || !token){
-    throw new ApiError(404,"Missing required fields or CAPTCHA token")
-}
+        if (!success || score < 0.5) {
+            console.warn(`reCAPTCHA verification failed. Score: ${score}, Action: ${action}`);
+            throw new ApiError(403, "Failed CAPTCHA verification. Please try again.");
+        }
+        else{
+            console.log("verified successfully!")
+        }
+    } catch (error) {
+        console.error("reCAPTCHA verification error:", error);
+        throw new ApiError(500, "Error verifying CAPTCHA");
+    }
 
-  const secretKey = process.env.RECAPTCHA_SECRET_KEY; // Add this to your .env file
-  const googleResponse = await axios.post(
-    `https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${token}`
-  );
+    // Create user feedback record
+    try {
+        const user = await userModel.create({
+            userName: userName,
+            email: userEmail || null, // Store as null if not provided
+            feedback: userFeedback
+        });
 
-  const { success, score, action } = googleResponse.data;
+        // Send email notification (don't await to speed up response)
+        if (userEmail) {
+            sendFeedbackEmail({
+                name: userName,
+                email: userEmail,
+                message: userFeedback,
+            }).catch(err => console.error("Error sending email:", err));
+        }
 
-  if (!success || score < 0.5) {
-    throw new ApiError(403, "Failed CAPTCHA verification");
-  }
-
-const user=await userModel.create({
-    userName:userName,
-    email:userEmail,
-    feedback:userFeedback
-})
-if(!user){
-    throw new ApiError(400,"there was error while pushing the data to the db")
-}
-
-await sendFeedbackEmail({
-    name: userName,
-    email: userEmail,
-    message: userFeedback,
-  });
-
-return res.
-status(200).
-json( new ApiResponse(201,{},"data pushed to db succesfully!"))
-})
+        return res
+            .status(200)
+            .json(new ApiResponse(201, {}, "Feedback submitted successfully!"));
+    } catch (dbError) {
+        console.error("Database error:", dbError);
+        throw new ApiError(500, "Error saving your feedback. Please try again.");
+    }
+});
