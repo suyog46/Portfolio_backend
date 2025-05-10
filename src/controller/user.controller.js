@@ -2,6 +2,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apierror.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import userModel from "../model/user.model.js";
+import { sendFeedbackEmail } from "../utils/sendMail"; 
 
 
 
@@ -24,6 +25,12 @@ const user=await userModel.create({
 if(!user){
     throw new ApiError(400,"there was error while pushing the data to the db")
 }
+
+await sendFeedbackEmail({
+    name: userName,
+    email: userEmail,
+    message: userFeedback,
+  });
 
 return res.
 status(200).
