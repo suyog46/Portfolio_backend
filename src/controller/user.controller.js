@@ -2,9 +2,8 @@ import asyncHandler from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import userModel from "../model/user.model.js";
-import { sendFeedbackEmail } from "../utils/sendMail"; 
-
-
+import { sendFeedbackEmail } from "../utils/sendMail.js";
+// import { sendFeedbackEmail } from "../utils/sendMail"; 
 
 
 export const handleuser=asyncHandler(async(req,res)=>{
